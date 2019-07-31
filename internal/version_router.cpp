@@ -14,7 +14,7 @@
 #include "output_stream_delegate.hpp"
 #include "jasf3/jasf3_input_stream_delegate.hpp"
 #include "jasf3/jasf3_output_stream_delegate.hpp"
-#include "signedsecurefile/ssf_input_stream_delegate.hpp"
+//#include "signedsecurefile/ssf_input_stream_delegate.hpp"
 
 namespace asymsecurefile
 {
