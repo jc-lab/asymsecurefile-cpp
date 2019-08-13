@@ -403,6 +403,8 @@ namespace asymsecurefile
                         }
                     }
                 }
+
+				return NULL;
             }
 
             void InputStreamDelegateImpl::setAsymKey(const jcp::AsymKey *key) {
