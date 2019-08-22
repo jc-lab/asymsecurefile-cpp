@@ -26,7 +26,7 @@ namespace asymsecurefile
                 return 16;
             }
 
-            std::unique_ptr< Result<int> > read(std::unique_ptr< Result<int> > &result, const uint8_t *data);
+            Result<int> read(Result<int> &result, const uint8_t *data);
 
             uint8_t version() const;
 

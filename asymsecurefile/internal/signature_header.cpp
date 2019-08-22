@@ -14,12 +14,12 @@ namespace asymsecurefile
 {
 
     namespace internal {
-        std::unique_ptr< Result<int> > SignatureHeader::read(std::unique_ptr< asymsecurefile::Result<int> > &result, const uint8_t *data) {
+        Result<int> SignatureHeader::read(asymsecurefile::Result<int> &result, const uint8_t *data) {
 			static const uint8_t SIGNATURE[] = { 0x0a, 0x9b, 0xd8, 0x13, 0x97, 0x1f, 0x93, 0xe8, 0x6b, 0x7e, 0xdf, 0x05, 0x70, 0x54, 0x02 };
 			if (memcmp(data, SIGNATURE, 15) != 0)
-				return std::unique_ptr<Result<int>>(ResultBuilder<int, InvalidFileException>(-1).withException().build());
+				return ResultBuilder<int, InvalidFileException>(-1).withException().build();
 			version_ = data[15];
-			return std::unique_ptr<Result<int>>(ResultBuilder<int, void>(0).build());
+			return ResultBuilder<int, void>(0).build();
         }
 
         uint8_t SignatureHeader::version() const {

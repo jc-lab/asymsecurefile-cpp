@@ -10,6 +10,8 @@
 
 #include <vector>
 
+#include <string>
+
 namespace asymsecurefile
 {
 	class OperationType

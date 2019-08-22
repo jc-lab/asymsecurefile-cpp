@@ -1,0 +1,3 @@
+[submodule "jcp"]
+	path = jcp
+	url = https://github.com/jc-lab/jcp.git

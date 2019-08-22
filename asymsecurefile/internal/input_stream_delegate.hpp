@@ -25,13 +25,13 @@ namespace asymsecurefile
         {
         public:
             virtual void setAsymKey(const jcp::AsymKey *key) = 0;
-            virtual std::unique_ptr< Result<void> > setAuthKey(const unsigned char *auth_key, size_t length) = 0;
+            virtual Result<void> setAuthKey(const unsigned char *auth_key, size_t length) = 0;
 
-			virtual std::unique_ptr< Result<int> > headerRead() = 0;
-			virtual std::unique_ptr< Result<int> > available() = 0;
-			virtual std::unique_ptr< Result<int> > read(unsigned char *buffer, size_t size) = 0;
-            virtual std::unique_ptr<Result<std::vector<const UserChunk *>>> userChunks() = 0;
-            virtual std::unique_ptr<Result<const UserChunk *>> getUserChunk(uint16_t code) = 0;
+			virtual Result<int> headerRead() = 0;
+			virtual Result<int> available() = 0;
+			virtual Result<int> read(unsigned char *buffer, size_t size) = 0;
+            virtual Result<std::vector<const UserChunk *>> userChunks() = 0;
+            virtual Result<const UserChunk *> getUserChunk(uint16_t code) = 0;
 			virtual bool isDataReadable() = 0;
 			virtual bool validate() = 0;
         };

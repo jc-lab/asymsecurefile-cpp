@@ -24,7 +24,6 @@
 
 #include "jasf3_chunk_resolver.hpp"
 
-#include <jcp/asym_key_impl.hpp>
 #include <jcp/mac.hpp>
 #include <jcp/key_agreement.hpp>
 #include <jcp/message_digest.hpp>
@@ -35,6 +34,7 @@
 #include <jcp/gcm_param_spec.hpp>
 #include <jcp/iv_param_spec.hpp>
 #include <jcp/exception/aead_bad_tag.hpp>
+#include <jcp/x509_encoded_key_spec.hpp>
 
 namespace asymsecurefile
 {
@@ -102,8 +102,8 @@ namespace asymsecurefile
 			{
 			}
 
-            std::unique_ptr< Result<void> > InputStreamDelegateImpl::setAuthKey(const unsigned char *auth_key, size_t length) {
-                std::unique_ptr< Result<int> > result;
+            Result<void> InputStreamDelegateImpl::setAuthKey(const unsigned char *auth_key, size_t length) {
+                Result<int> result;
 
                 auth_key_.clear();
                 auth_key_.insert(auth_key_.end(), &auth_key[0], &auth_key[length]);
@@ -111,12 +111,12 @@ namespace asymsecurefile
                 if(!basic_inited_ && (!auth_key_.empty()) && (state_ != STATE_READ_HEADER)) {
                     std::unique_ptr<std::exception> e;
                     if (e = initBasic())
-                        return std::unique_ptr<Result<void>>(ResultBuilder<void,  std::exception>().withOtherException(e).build());
+                        return ResultBuilder<void,  std::exception>().withOtherException(e).build();
                 }
-				return std::unique_ptr<Result<void>>(ResultBuilder<void, void>().build());
+				return ResultBuilder<void, void>().build();
 			}
 
-            std::unique_ptr< Result<int> > InputStreamDelegateImpl::headerRead()
+            Result<int> InputStreamDelegateImpl::headerRead()
 			{
 				if (!fingerprint_digest_.get()) {
 					fingerprint_digest_ = jcp::MessageDigest::getInstance(jcp::MessageDigestAlgorithm::SHA_256.algo_id());
@@ -139,19 +139,19 @@ namespace asymsecurefile
                     auth_enc_key_mac->update(seed.data(), seed.size());
                 }
                 auth_enc_key_.resize(auth_enc_key_mac->digest_size());
-                std::unique_ptr<jcp::Result<void>> block_result = auth_enc_key_mac->digest(&auth_enc_key_[0]);
-                if(block_result->exception()) {
+                jcp::Result<void> block_result = auth_enc_key_mac->digest(&auth_enc_key_[0]);
+                if(!block_result) {
                     auth_enc_key_.clear();
-                    return block_result->move_exception();
+                    return block_result.move_exception();
                 }
 
                 return NULL;
             }
 
-            std::unique_ptr< Result<int> > InputStreamDelegateImpl::readPayload(State run_state, bool blocking)
+            Result<int> InputStreamDelegateImpl::readPayload(State run_state, bool blocking)
 			{
 				int rc = 1;
-				std::unique_ptr< Result<int> > temp_result;
+				Result<int> temp_result;
 				std::unique_ptr< std::exception > temp_exception;
 
 				if (run_state == STATE_READ_DATA) {
@@ -163,11 +163,11 @@ namespace asymsecurefile
 
 					while (!cipher_data_queue_.empty()) {
 						std::unique_ptr<DataChunkQueueItem> item(std::move(cipher_data_queue_.front())); cipher_data_queue_.pop_front();
-						std::unique_ptr< jcp::Result<jcp::Buffer> > work_res = data_cipher_->update(item->buffer(), item->size());
-						if (work_res->exception()) {
-							return std::unique_ptr<Result<int>>(ResultBuilder<int, std::exception>(0).withOtherException(work_res->move_exception()).build());
+						jcp::Result<jcp::Buffer> work_res = data_cipher_->update(item->buffer(), item->size());
+						if (!work_res) {
+							return ResultBuilder<int, std::exception>(0).withOtherException(work_res.move_exception()).build();
 						}
-						plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(work_res->result().data(), work_res->result().size())));
+						plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(work_res->data(), work_res->size())));
 					}
 				}
 				
@@ -198,8 +198,8 @@ namespace asymsecurefile
 							// Continue process to READ_DATA
 						case STATE_READ_DATA:
 							if (reading_chunk_.getPrimaryType() == Jasf3ChunkType::DATA_STREAM) {
-                                std::unique_ptr< jcp::Result<jcp::Buffer> > result_with_buf = data_cipher_->update(reading_chunk_.getData(), reading_chunk_.getSize());
-								plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(result_with_buf->result())));
+                                jcp::Result<jcp::Buffer> result_with_buf = data_cipher_->update(reading_chunk_.getData(), reading_chunk_.getSize());
+								plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(*result_with_buf)));
 								break;
 							}
 						case STATE_READ_FOOTER:
@@ -207,7 +207,7 @@ namespace asymsecurefile
 							state_ = STATE_READ_DONE;
 							temp_exception = validateFooter();
 							if (temp_exception) {
-								return std::unique_ptr<Result<int>>(ResultBuilder<int, std::exception>(-1).withOtherException(temp_exception).build());
+								return ResultBuilder<int, std::exception>(-1).withOtherException(temp_exception).build();
 							}
 							break;
 						}
@@ -216,24 +216,24 @@ namespace asymsecurefile
 							break;
 					}
 					if (ret < 0)
-						return std::unique_ptr<Result<int>>(ResultBuilder<int, void>(ret).build());
+						return ResultBuilder<int, void>(ret).build();
 				}
 
-				return std::unique_ptr<Result<int>>(ResultBuilder<int, void>(rc).build());
+				return ResultBuilder<int, void>(rc).build();
 			}
 
-            std::unique_ptr< Result<void> > InputStreamDelegateImpl::verifySignData(const std::vector<unsigned char>& signdata, const jcp::Buffer &fingerprint) {
+            Result<void> InputStreamDelegateImpl::verifySignData(const std::vector<unsigned char>& signdata, const jcp::Buffer &fingerprint) {
                 std::unique_ptr<jcp::Signature> signature = jcp::Signature::getInstance(algorithm_info_.getAlgorithmPtr()->getSignatureAlgorithm().c_str());
                 signature->initVerify(this->asym_key_);
                 signature->update(fingerprint.data(), fingerprint.size());
-                std::unique_ptr< jcp::Result<bool> > result = signature->verify(signdata.data(), signdata.size());
-                if(result->exception()) {
-                    return std::unique_ptr<Result<void>>(ResultBuilder<void, std::exception>().withOtherException(result->move_exception()).build());
+                jcp::Result<bool> result = signature->verify(signdata.data(), signdata.size());
+                if(!result) {
+                    return ResultBuilder<void, std::exception>().withOtherException(result.move_exception()).build();
                 }
-                if(!result->result()) {
-                    return std::unique_ptr<Result<void>>(ResultBuilder<void, ValidateFailedException>().withException("Integrity validation failed").build());
+                if(!(*result)) {
+                    return ResultBuilder<void, ValidateFailedException>().withException("Integrity validation failed").build();
                 }
-                return std::unique_ptr<Result<void>>(ResultBuilder<void, void>().build());
+                return ResultBuilder<void, void>().build();
 			}
 
 			std::unique_ptr< std::exception > InputStreamDelegateImpl::validateFooter() {
@@ -241,33 +241,33 @@ namespace asymsecurefile
 					return NULL;
 
 				{
-					std::unique_ptr<jcp::Result<jcp::Buffer>> result = data_cipher_->doFinal();
-					if (result->exception()) {
+					jcp::Result<jcp::Buffer> result = data_cipher_->doFinal();
+					if (!result) {
 						return std::unique_ptr<ValidateFailedException>(new ValidateFailedException());
 					}
 
-					if (result->result().size()) {
-						plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(result->result())));
+					if (result->size()) {
+						plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(*result)));
 					}
 				}
                 {
-                    std::unique_ptr<jcp::Result<jcp::Buffer>> fingerprint_result = fingerprint_digest_->digest();
+                    jcp::Result<jcp::Buffer> fingerprint_result = fingerprint_digest_->digest();
                     const FooterChunk *footer_chunk = getSpecialChunk<FooterChunk>();
-                    if (memcmp(footer_chunk->fingerprint().data(), fingerprint_result->result().data(), fingerprint_result->result().size())) {
+                    if (memcmp(footer_chunk->fingerprint().data(), fingerprint_result->data(), fingerprint_result->size())) {
 						return std::unique_ptr<ValidateFailedException>(new ValidateFailedException());
                     }
 
                     if (*default_header_chunk_->operation_type() == OperationType::SIGN) {
-                        std::unique_ptr<Result<void> > verify_result = verifySignData(footer_chunk->signature(), fingerprint_result->result());
-                        if (verify_result->exception())
-                            return verify_result->move_exception();
+                        Result<void> verify_result = verifySignData(footer_chunk->signature(), *fingerprint_result);
+                        if (!verify_result)
+                            return verify_result.move_exception();
                     } else {
                         std::unique_ptr<jcp::Mac> mac = jcp::Mac::getInstance(jcp::MacAlgorithm::HmacSHA256.algo_id());
                         jcp::SecretKey secretKey(mac_key_.data(), mac_key_.size());
                         mac->init(&secretKey);
-                        mac->update(fingerprint_result->result().data(), fingerprint_result->result().size());
-                        std::unique_ptr<jcp::Result<jcp::Buffer>> mac_result = mac->digest();
-                        if (!memcmp(footer_chunk->mac().data(), mac_result->result().data(), mac_result->result().size())) {
+                        mac->update(fingerprint_result->data(), fingerprint_result->size());
+                        jcp::Result<jcp::Buffer> mac_result = mac->digest();
+                        if (!memcmp(footer_chunk->mac().data(), mac_result->data(), mac_result->size())) {
                             return std::unique_ptr<ValidateFailedException>(new ValidateFailedException());
                         }
                     }
@@ -277,11 +277,11 @@ namespace asymsecurefile
 				return NULL;
             }
 
-			bool InputStreamDelegateImpl::prepareReadData(std::unique_ptr< Result<int> >& result) {
+			bool InputStreamDelegateImpl::prepareReadData(Result<int>& result) {
 				std::vector<unsigned char> data_key;
 
 				if (auth_key_.empty()) {
-					result = std::unique_ptr<Result<int>>(ResultBuilder<int, IOException>(-1).withException("Empty authKey").build());
+					result = Result<int>(ResultBuilder<int, IOException>(-1).withException("Empty authKey").build());
 					return false;
 				}
 
@@ -293,12 +293,12 @@ namespace asymsecurefile
 				algorithm_info_ = asymAlgorithmChunk->getAlgorithmInfo();
 
 				if (!asym_key_) {
-					result = std::unique_ptr<Result<int>>(ResultBuilder<int, IOException>(-1).withException("Empty authKey").build());
+					result = Result<int>(ResultBuilder<int, IOException>(-1).withException("Empty authKey").build());
 					return false;
 				}
 
 				if ((!defaultHeader) || (!asymAlgorithmChunk) || (!dataAlgorithmChunk) || (!dataIVChunk)) {
-					result = std::unique_ptr<Result<int>>(ResultBuilder<int, IOException>(-1).withException("Empty Required chunk").build());
+					result = Result<int>(ResultBuilder<int, IOException>(-1).withException("Empty Required chunk").build());
 					return false;
 				}
 
@@ -309,7 +309,7 @@ namespace asymsecurefile
 					const SeedKeyCheckChunk* seedKeyCheckChunk = getSpecialChunk<SeedKeyCheckChunk>();
 
 					if ((!encryptedSeedKeyChunk) || (!seedKeyCheckChunk)) {
-						result = std::unique_ptr<Result<int>>(ResultBuilder<int, IOException>(-1).withException("Empty Required chunk").build());
+						result = Result<int>(ResultBuilder<int, IOException>(-1).withException("Empty Required chunk").build());
 						return false;
 					}
 
@@ -320,42 +320,51 @@ namespace asymsecurefile
 
 					if (((*algorithm_info_.getAlgorithmPtr()) == AsymAlgorithm::EC) || ((*algorithm_info_.getAlgorithmPtr()) == AsymAlgorithm::PRIME)) {
 						std::unique_ptr<jcp::KeyAgreement> key_agreement = jcp::KeyAgreement::getInstance(jcp::KeyAgreementAlgorithm::ECDH.algo_id());
-						jcp::AsymKeyImpl localKey;
-						localKey.setPublicKey(encryptedSeedKeyChunk->getData(), encryptedSeedKeyChunk->getDataSize());
+						jcp::Result<std::unique_ptr<jcp::X509EncodedKeySpec>> public_key_spec = jcp::X509EncodedKeySpec::decode(encryptedSeedKeyChunk->getData(), encryptedSeedKeyChunk->getDataSize());
+                        if(!public_key_spec) {
+                            result = ResultBuilder<int, std::exception>(-1).withOtherException(public_key_spec.move_exception()).build();
+                            return false;
+                        }
+                        std::unique_ptr<jcp::KeyFactory> public_key_factory = jcp::KeyFactory::getInstance("X509");
+                        jcp::Result<std::unique_ptr<jcp::AsymKey>> localKey = public_key_factory->generatePublicKey(public_key_spec->get());
+                        if(!localKey) {
+                            result = ResultBuilder<int, std::exception>(-1).withOtherException(localKey.move_exception()).build();
+                            return false;
+                        }
 						key_agreement->init(this->asym_key_);
-						std::unique_ptr<jcp::Result<jcp::SecretKey>> dophase_result = key_agreement->doPhase(&localKey);
-						if (dophase_result->exception()) {
-							result = std::unique_ptr<Result<int>>(ResultBuilder<int, std::exception>(-1).withOtherException(dophase_result->move_exception()).build());;
+						jcp::Result<jcp::SecretKey> dophase_result = key_agreement->doPhase(localKey->get());
+						if (!dophase_result) {
+							result = ResultBuilder<int, std::exception>(-1).withOtherException(dophase_result.move_exception()).build();
 							return false;
 						}
-						std::unique_ptr<jcp::Result<jcp::Buffer>> ka_result = key_agreement->generateSecret();
-						if (ka_result->exception()) {
-							result = std::unique_ptr<Result<int>>(ResultBuilder<int, std::exception>(-1).withOtherException(ka_result->move_exception()).build());
+						jcp::Result<jcp::Buffer> ka_result = key_agreement->generateSecret();
+						if (ka_result.exception()) {
+							result = Result<int>(ResultBuilder<int, std::exception>(-1).withOtherException(ka_result.move_exception()).build());
 							return false;
 						}
-						seed_key.insert(seed_key.end(), ka_result->result().data(), ka_result->result().data() + ka_result->result().size());
+						seed_key.insert(seed_key.end(), ka_result->data(), ka_result->data() + ka_result->size());
 					}
 					else if (((*algorithm_info_.getAlgorithmPtr()) == AsymAlgorithm::RSA)) {
 						std::unique_ptr<jcp::Cipher> seedKeyCipher = jcp::Cipher::getInstance(jcp::CipherAlgorithm::RsaEcbOaepPadding.algo_id());
 						seedKeyCipher->init(jcp::Cipher::DECRYPT_MODE, this->asym_key_);
-						std::unique_ptr< jcp::Result<jcp::Buffer> > seed_key_result = seedKeyCipher->doFinal(encryptedSeedKeyChunk->getData(), encryptedSeedKeyChunk->getDataSize());
-						if (seed_key_result->exception()) {
-							result = std::unique_ptr<Result<int>>(ResultBuilder<int, std::exception>(-1).withOtherException(seed_key_result->move_exception()).build());
+						jcp::Result<jcp::Buffer> seed_key_result = seedKeyCipher->doFinal(encryptedSeedKeyChunk->getData(), encryptedSeedKeyChunk->getDataSize());
+						if (seed_key_result.exception()) {
+							result = Result<int>(ResultBuilder<int, std::exception>(-1).withOtherException(seed_key_result.move_exception()).build());
 							return false;
 						}
-						seed_key.insert(seed_key.end(), seed_key_result->result().data(), seed_key_result->result().data() + seed_key_result->result().size());
+						seed_key.insert(seed_key.end(), seed_key_result->data(), seed_key_result->data() + seed_key_result->size());
 					}
 					else {
 						return false;
 					}
 
 					dataKeyMac->update(seed_key.data(), seed_key.size());
-					std::unique_ptr< jcp::Result<jcp::Buffer> > bigkey_result = dataKeyMac->digest();
-					data_key.insert(data_key.end(), bigkey_result->result().data(), bigkey_result->result().data() + 32);
-					mac_key_.insert(mac_key_.end(), bigkey_result->result().data() + 32, bigkey_result->result().data() + 64);
+					jcp::Result<jcp::Buffer> bigkey_result = dataKeyMac->digest();
+					data_key.insert(data_key.end(), bigkey_result->data(), bigkey_result->data() + 32);
+					mac_key_.insert(mac_key_.end(), bigkey_result->data() + 32, bigkey_result->data() + 64);
 
 					if (!seedKeyCheckChunk->verify(seed_key)) {
-						result = std::unique_ptr<Result<int>>(ResultBuilder<int, ValidateFailedException>(-1).withException("Different Key").build());
+						result = Result<int>(ResultBuilder<int, ValidateFailedException>(-1).withException("Different Key").build());
 						return false;
 					}
 
@@ -390,45 +399,43 @@ namespace asymsecurefile
 							std::vector<unsigned char> dataIV(16);
 							memcpy(&dataIV[0], rawUserChunk->getData(), dataIV.size());
 							std::unique_ptr<jcp::Cipher> cipher = createChunkCipher(dataIV, auth_enc_key_, auth_key_);
-							std::unique_ptr<jcp::Result<jcp::Buffer>> plaintext = cipher->doFinal(rawUserChunk->getData() + 16, rawUserChunk->getDataSize() - 16);
-							if (plaintext->exception()) {
-								if(dynamic_cast<const jcp::exception::AEADBadTagException*>(plaintext->exception())) {
+							jcp::Result<jcp::Buffer> plaintext = cipher->doFinal(rawUserChunk->getData() + 16, rawUserChunk->getDataSize() - 16);
+							if (plaintext.exception()) {
+								if(dynamic_cast<const jcp::exception::AEADBadTagException*>(plaintext.exception())) {
                                     return std::unique_ptr<ValidateFailedException>(new ValidateFailedException("UserChunk integrity validation failed"));
                                 }
-								return plaintext->move_exception();
+								return plaintext.move_exception();
 							}
-                            cached_user_chunk_map_[iter->first & 0xFFFF] = std::unique_ptr<RawUserChunk>(new RawUserChunk(rawUserChunk->getPrimaryType(), rawUserChunk->getUserCode(), (short)plaintext->result().size(), plaintext->result().data()));
+                            cached_user_chunk_map_[iter->first & 0xFFFF] = std::unique_ptr<RawUserChunk>(new RawUserChunk(rawUserChunk->getPrimaryType(), rawUserChunk->getUserCode(), (short)plaintext->size(), plaintext->data()));
                         }else{
                             cached_user_chunk_map_[iter->first & 0xFFFF] = std::unique_ptr<RawUserChunk>(new RawUserChunk(rawUserChunk));
                         }
                     }
                 }
-
-				return NULL;
             }
 
             void InputStreamDelegateImpl::setAsymKey(const jcp::AsymKey *key) {
                 asym_key_ = key;
             }
 
-            std::unique_ptr<Result<int>> InputStreamDelegateImpl::available() {
-                return std::unique_ptr<Result<int>>();
+            Result<int> InputStreamDelegateImpl::available() {
+                return Result<int>();
             }
 
-            std::unique_ptr<Result<int>> InputStreamDelegateImpl::read(unsigned char *buffer, size_t size) {
+            Result<int> InputStreamDelegateImpl::read(unsigned char *buffer, size_t size) {
                 int readSize = 0;
-                std::unique_ptr<Result<int>> readResult;
+                Result<int> readResult;
                 if(state_ != STATE_READ_DATA) {
                     readResult = readPayload(STATE_READ_HEADER, false);
                 }else {
                     readResult = readPayload(STATE_READ_DATA, false);
-					if (readResult->exception()) {
+					if (readResult.exception()) {
 						return readResult;
 					}
-                    if (readResult->result() == 0) {
+                    if ((*readResult) == 0) {
                         // If data read has done
 						readResult = readPayload(STATE_READ_FOOTER, true);
-						if (readResult->exception()) {
+						if (readResult.exception()) {
 							return readResult;
 						}
                     }
@@ -444,33 +451,33 @@ namespace asymsecurefile
                         }
                     }else{
                         if(state_ == STATE_READ_DONE)
-                            return std::unique_ptr<Result<int>>(ResultBuilder<int, void>(-1).build());
+                            return ResultBuilder<int, void>(-1).build();
                     }
                 }
-                return std::unique_ptr<Result<int>>(ResultBuilder<int, void>(readSize).build());
+                return ResultBuilder<int, void>(readSize).build();
             }
 
-            std::unique_ptr<Result<const UserChunk *>> InputStreamDelegateImpl::getUserChunk(uint16_t code) {
+            Result<const UserChunk *> InputStreamDelegateImpl::getUserChunk(uint16_t code) {
 				std::unique_ptr< std::exception > e(parseUserChunks());
                 if(e)
-                    return std::unique_ptr<Result<const UserChunk *>>(ResultBuilder<const UserChunk *,  std::exception>().withOtherException(e).build());
+                    return ResultBuilder<const UserChunk *,  std::exception>().withOtherException(e).build();
                 const auto iter = cached_user_chunk_map_.find(code);
                 if(iter != cached_user_chunk_map_.cend()) {
-                    return std::unique_ptr<Result<const UserChunk *>>(ResultBuilder<const UserChunk *, void>(iter->second.get()).build());
+                    return ResultBuilder<const UserChunk *, void>(iter->second.get()).build();
                 }
-                return std::unique_ptr<Result<const UserChunk *>>(ResultBuilder<const UserChunk *, void>(nullptr).build());
+                return Result<const UserChunk *>(ResultBuilder<const UserChunk *, void>(nullptr).build());
             }
 
-            std::unique_ptr<Result<std::vector<const UserChunk *>>> InputStreamDelegateImpl::userChunks() {
+            Result<std::vector<const UserChunk *>> InputStreamDelegateImpl::userChunks() {
                 std::unique_ptr< std::exception > e(parseUserChunks());
                 if(e)
-                    return std::unique_ptr<Result<std::vector<const UserChunk*>>>(ResultBuilder< std::vector<const UserChunk *>,  std::exception>().withOtherException(e).build());
-                std::unique_ptr<ResultImpl<std::vector<const UserChunk *>, void>> result(ResultBuilder<std::vector<const UserChunk *>, void>().build());
-				result->result().reserve(cached_user_chunk_map_.size());
+                    return ResultBuilder< std::vector<const UserChunk *>,  std::exception>().withOtherException(e).build();
+                std::unique_ptr<ResultImpl<std::vector<const UserChunk *>, void>> result_impl(new ResultImpl<std::vector<const UserChunk *>, void>());
+                result_impl->result().reserve(cached_user_chunk_map_.size());
 				for(auto iter = cached_user_chunk_map_.cbegin(); iter != cached_user_chunk_map_.cend(); iter++) {
-					result->result().push_back(iter->second.get());
+                    result_impl->result().push_back(iter->second.get());
                 }
-                return result;
+                return Result< std::vector<const UserChunk *> >(std::move(result_impl));
             }
 
             bool InputStreamDelegateImpl::isDataReadable() {

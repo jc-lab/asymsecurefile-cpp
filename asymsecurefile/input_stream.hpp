@@ -50,8 +50,8 @@ namespace asymsecurefile
         std::vector<uint8_t> signature_header_buf_;
         int                  signature_header_buf_pos_;
 
-		std::unique_ptr< Result<int> > header_read_result_readmore_;
-		std::unique_ptr< Result<int> > header_read_result_last_;
+		Result<int> header_read_result_readmore_;
+		Result<int> header_read_result_last_;
         std::unique_ptr< std::exception > read_exception_;
 
 	public:
@@ -77,7 +77,7 @@ namespace asymsecurefile
 		 * @param authKey
 		 * @param length
 		 */
-        std::unique_ptr< Result<void> > setAuthKey(const uint8_t *authKey, int length);
+        Result<void> setAuthKey(const uint8_t *authKey, int length);
 
 		/**
 		 * Set Asymmetric jcp::AsymKey (jcp::AsymKey class)
@@ -86,9 +86,9 @@ namespace asymsecurefile
 		 */
 		void setAsymKey(const jcp::AsymKey *key);
 
-        std::unique_ptr<Result< const UserChunk* > > getUserChunk(uint16_t code);
+        Result< const UserChunk* > getUserChunk(uint16_t code);
 
-		std::unique_ptr< Result< std::vector< const UserChunk* > > > userChunks();
+		Result< std::vector< const UserChunk* > > userChunks();
 
 		/**
 		 *
@@ -97,7 +97,7 @@ namespace asymsecurefile
 		std::exception *read_exception();
 
 
-        std::unique_ptr< Result<void> > setAuthKey(const std::string& authKey) {
+        Result<void> setAuthKey(const std::string& authKey) {
             return setAuthKey((const uint8_t*)authKey.c_str(), authKey.length());
         }
 

@@ -84,13 +84,13 @@ namespace asymsecurefile
 			public:
 				InputStreamDelegateImpl(std::istream *is);
 				~InputStreamDelegateImpl();
-                std::unique_ptr< Result<void> > setAuthKey(const unsigned char *auth_key, size_t length) override;
-                std::unique_ptr< Result<int> > headerRead() override;
+                Result<void> setAuthKey(const unsigned char *auth_key, size_t length) override;
+                Result<int> headerRead() override;
 			private:
-                std::unique_ptr< Result<int> > readPayload(State run_state, bool blocking);
+                Result<int> readPayload(State run_state, bool blocking);
                 std::unique_ptr<std::exception> initBasic();
-				bool prepareReadData(std::unique_ptr< Result<int> >& result);
-                std::unique_ptr< Result<void> > verifySignData(const std::vector<unsigned char>& signature, const jcp::Buffer &fingerprint);
+				bool prepareReadData(Result<int>& result);
+                Result<void> verifySignData(const std::vector<unsigned char>& signature, const jcp::Buffer &fingerprint);
 				std::unique_ptr< std::exception > validateFooter();
 
 				template<class T>
@@ -101,13 +101,13 @@ namespace asymsecurefile
             public:
                 void setAsymKey(const jcp::AsymKey *key) override;
 
-                std::unique_ptr<Result<int>> available() override;
+                Result<int> available() override;
 
-                std::unique_ptr<Result<int>> read(unsigned char *buffer, size_t size) override;
+                Result<int> read(unsigned char *buffer, size_t size) override;
 
-                std::unique_ptr<Result<std::vector<const UserChunk *>>> userChunks() override;
+                Result<std::vector<const UserChunk *>> userChunks() override;
 
-                std::unique_ptr<Result<const UserChunk *>> getUserChunk(uint16_t code) override;
+                Result<const UserChunk *> getUserChunk(uint16_t code) override;
 
                 bool isDataReadable() override;
 

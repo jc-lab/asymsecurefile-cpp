@@ -34,7 +34,7 @@ namespace asymsecurefile
 				// -1 : error
 				// 0 : more read
 				// 1 : catched
-				int read(std::unique_ptr< Result<int> >& result, std::istream *is, bool blocking, jcp::MessageDigest *fingerprint_digest);
+				int read(Result<int>& result, std::istream *is, bool blocking, jcp::MessageDigest *fingerprint_digest);
 				void reset() {
 					step_ = 0;
 					primary_type_ = 0;

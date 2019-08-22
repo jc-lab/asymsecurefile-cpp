@@ -47,10 +47,10 @@ namespace asymsecurefile {
 				bool verify(const std::vector<unsigned char>& plain_key) const {
                     const jcp::SecretKeyFactory *skf = jcp::SecretKeyFactory::getInstance(jcp::SecretKeyFactoryAlgorithm::PBKDF2WithHmacSHA256.algo_id());
 					jcp::PBEKeySpec key_spec((const char*)plain_key.data(), plain_key.size(), salt_.data(), salt_.size(), 1000, PASS_SIZE * 8);
-					std::unique_ptr<jcp::Result<jcp::SecretKey>> result = skf->generateSecret(&key_spec);
-                    if(result->exception())
+					jcp::Result<jcp::SecretKey> result = skf->generateSecret(&key_spec);
+                    if(!result)
                         return false;
-                    const std::vector<unsigned char>& encoded = result->result().getEncoded();
+                    const std::vector<unsigned char>& encoded = result->getEncoded();
                     if(encoded.size() != encoded_.size())
                         return false;
                     if(memcmp(encoded.data(), encoded_.data(), encoded.size()))

@@ -39,10 +39,6 @@ namespace asymsecurefile {
 							// Compare OID
 						}
 					}
-					if (key->isRSAKey())
-					{
-
-					}
 				}
 
 				void set(const AsymAlgorithm* asym_algo, int key_size) {

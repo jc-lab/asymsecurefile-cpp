@@ -27,7 +27,7 @@ namespace asymsecurefile
 				data_stream_.reserve(4096);
 			}
 
-			int ReadingChunk::read(std::unique_ptr< Result<int> >& result, std::istream* is, bool blocking, jcp::MessageDigest* message_digest)
+			int ReadingChunk::read(Result<int>& result, std::istream* is, bool blocking, jcp::MessageDigest* message_digest)
 			{
 				while ((is->rdbuf()->in_avail() > 0) || blocking) {
 					int temp;
@@ -36,7 +36,7 @@ namespace asymsecurefile
 						temp = is->get();
 						if (temp < 0)
 						{
-							result = std::unique_ptr<Result<int>>(ResultBuilder<int, InvalidFileException>(0).withException().build());
+							result = Result<int>(ResultBuilder<int, InvalidFileException>(0).withException().build());
 							return -1;
 						}
 						primary_type_ = (unsigned char)temp;
@@ -55,7 +55,7 @@ namespace asymsecurefile
 						temp = is->get();
 						if (temp < 0)
 						{
-							result = std::unique_ptr<Result<int>>(ResultBuilder<int, InvalidFileException>(0).withException().build());
+							result = Result<int>(ResultBuilder<int, InvalidFileException>(0).withException().build());
 							return -1;
 						}
 						if (primary_type_ != FOOTER_FINGERPRINT)
@@ -69,7 +69,7 @@ namespace asymsecurefile
 						if (temp < 0)
 							if (temp < 0)
 							{
-								result = std::unique_ptr<Result<int>>(ResultBuilder<int, InvalidFileException>(0).withException().build());
+								result = Result<int>(ResultBuilder<int, InvalidFileException>(0).withException().build());
 								return -1;
 							}
 						if (primary_type_ != FOOTER_FINGERPRINT)
@@ -81,7 +81,7 @@ namespace asymsecurefile
 						if (step_ <= 0) {
 							char errmsg[256];
 							sprintf_s(errmsg, "wrong chunk size (%d)", step_);
-							result = std::unique_ptr<Result<int>>(ResultBuilder<int, InvalidFileException>(0).withException(errmsg).build());
+							result = Result<int>(ResultBuilder<int, InvalidFileException>(0).withException(errmsg).build());
 							return -1;
 						}
 						if (data_stream_.size() < step_) {

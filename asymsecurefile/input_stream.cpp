@@ -47,16 +47,16 @@ namespace asymsecurefile
             is_->read((char *) &signature_header_buf_[signature_header_buf_pos_], remaining);
             signature_header_buf_pos_ += is_->gcount();
             if (signature_header_buf_pos_ == SignatureHeader::SIGNATURE_SIZE()) {
-				std::unique_ptr< Result<int> > result = signature_header_.read(header_read_result_last_, signature_header_buf_.data());
-                if(result->exception()) {
+				Result<int> result = signature_header_.read(header_read_result_last_, signature_header_buf_.data());
+                if(!result) {
 					header_read_result_last_ = std::move(result);
-                    return header_read_result_last_.get();
+                    return &header_read_result_last_;
                 }
 
                 VersionRouter::InputStreamDelegateFactory *factory = VersionRouter::findReaderDelegate(signature_header_.version());
                 if(!factory) {
-                    header_read_result_last_.reset(new ResultImpl<int, InvalidFileException>(-1));
-                    return header_read_result_last_.get();
+                    header_read_result_last_ = ResultBuilder<int, InvalidFileException>(-1).build();
+                    return &header_read_result_last_;
                 }
 
                 delegate_ = std::move(factory->create(is_));
@@ -67,13 +67,13 @@ namespace asymsecurefile
 
         if (signature_header_ready_) {
 			header_read_result_last_ = delegate_->headerRead();
-			return header_read_result_last_.get();
+			return &header_read_result_last_;
         }
 
-        return header_read_result_readmore_.get();
+        return &header_read_result_readmore_;
     }
 
-    std::unique_ptr< Result<void> > InputStream::setAuthKey(const uint8_t *authKey, int length) {
+    Result<void> InputStream::setAuthKey(const uint8_t *authKey, int length) {
         return delegate_->setAuthKey(authKey, length);
     }
 
@@ -81,11 +81,11 @@ namespace asymsecurefile
         return delegate_->setAsymKey(key);
     }
 
-	std::unique_ptr<Result< const UserChunk* > > InputStream::getUserChunk(uint16_t code) {
+	Result< const UserChunk* > InputStream::getUserChunk(uint16_t code) {
 		return delegate_->getUserChunk(code);
 	}
 
-    std::unique_ptr< Result< std::vector< const UserChunk* > > > InputStream::userChunks() {
+    Result< std::vector< const UserChunk* > > InputStream::userChunks() {
         return delegate_->userChunks();
 	}
 
@@ -94,12 +94,12 @@ namespace asymsecurefile
 	}
 
     InputStream::InputStreamBuffer::int_type InputStream::InputStreamBuffer::underflow() {
-        std::unique_ptr<Result<int>> result = parent_->delegate_->read(&gbuf_[0], gbuf_.capacity());
-		if(result->exception())
-	        parent_->read_exception_ = result->move_exception();
-		if (result->result() > 0)
+        Result<int> result = parent_->delegate_->read(&gbuf_[0], gbuf_.capacity());
+		if(!result)
+	        parent_->read_exception_ = result.move_exception();
+		if ((*result) > 0)
 		{
-			this->setg((char*)gbuf_.data(), (char*)gbuf_.data(), (char*)gbuf_.data() + result->result());
+			this->setg((char*)gbuf_.data(), (char*)gbuf_.data(), (char*)gbuf_.data() + (*result));
 			return gbuf_[0];
 		}
         return traits_type::eof();
