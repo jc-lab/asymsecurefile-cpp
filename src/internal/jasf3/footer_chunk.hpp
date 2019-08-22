@@ -68,6 +68,8 @@ namespace asymsecurefile {
                                 mac_.resize(size);
                                 byteBuffer.get(&mac_[0], size);
 								break;
+							default:
+							    byteBuffer.skip(size);
 							}
 						}
 					} while (type > 0);

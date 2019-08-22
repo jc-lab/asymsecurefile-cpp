@@ -34,6 +34,7 @@ namespace asymsecurefile {
             uint32_t getUint32();
             uint64_t getUint64();
             bool get(unsigned char *outbuf, size_t len);
+            bool skip(size_t len);
 
         }; // class ByteBuffer
 

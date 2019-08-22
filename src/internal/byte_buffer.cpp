@@ -70,6 +70,13 @@ namespace asymsecurefile {
             return true;
         }
 
+        bool ByteBuffer::skip(size_t len) {
+            if(check_flow(len))
+                return false;
+            pos_ += len;
+            return true;
+        }
+
     } // namespace internal
 
 } // namespace src
