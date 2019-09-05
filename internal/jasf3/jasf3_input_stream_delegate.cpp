@@ -381,7 +381,7 @@ namespace asymsecurefile
 
             std::unique_ptr< std::exception > InputStreamDelegateImpl::parseUserChunks() {
                 if(cached_user_chunks_)
-                    return NULL;
+                    return nullptr;
 
                 for(auto iter = raw_chunk_map_.cbegin(); iter != raw_chunk_map_.cend(); iter++) {
                     if(iter->first & 0x800000) {
@@ -403,6 +403,8 @@ namespace asymsecurefile
                         }
                     }
                 }
+
+				return nullptr;
             }
 
             void InputStreamDelegateImpl::setAsymKey(const jcp::AsymKey *key) {
