@@ -167,7 +167,9 @@ namespace asymsecurefile
 						if (!work_res) {
 							return ResultBuilder<int, std::exception>(0).withOtherException(work_res.move_exception()).build();
 						}
-						plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(work_res->data(), work_res->size())));
+						if (work_res->size() > 0) {
+							plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(work_res->data(), work_res->size())));
+						}
 					}
 				}
 				
@@ -199,7 +201,9 @@ namespace asymsecurefile
 						case STATE_READ_DATA:
 							if (reading_chunk_.getPrimaryType() == Jasf3ChunkType::DATA_STREAM) {
                                 jcp::Result<jcp::Buffer> result_with_buf = data_cipher_->update(reading_chunk_.getData(), reading_chunk_.getSize());
-								plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(*result_with_buf)));
+								if (result_with_buf->size() > 0) {
+									plain_data_queue_.push_back(std::unique_ptr<DataChunkQueueItem>(new DataChunkQueueItem(*result_with_buf)));
+								}
 								break;
 							}
 						case STATE_READ_FOOTER:
